@@ -1,0 +1,5 @@
+python-telegram-bot[job-queue]==21.9
+flask
+SQLAlchemy
+psycopg2-binary
+pytz
