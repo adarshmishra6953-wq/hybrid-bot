@@ -11,6 +11,7 @@ from sqlalchemy.ext.mutable import MutableDict
 # --- Setup & Config ---
 FORCE_ADMIN_ID = 1695450646
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
+# Purana Database URL yahan use ho raha hai, ye sahi hai.
 DB_URL = os.environ.get("DATABASE_URL", "sqlite:///local.db").replace("postgres://", "postgresql://", 1)
 IST = pytz.timezone('Asia/Kolkata')
 
@@ -33,11 +34,11 @@ class ScheduledPost(Base):
     channel_id = Column(BigInteger)
     photo_id = Column(String)
     caption = Column(String)
-    post_time = Column(String) # HH:MM
+    post_time = Column(String) # HH:MM format
 
 Base.metadata.create_all(Engine)
 
-# --- Flask for Render Health Check ---
+# --- Flask for Render Health ---
 flask_app = Flask(__name__)
 @flask_app.route('/')
 def health(): return "Bot is Online! ✅"
@@ -49,7 +50,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🔄 Forward Rules", callback_data="fwd_mgr"), 
          InlineKeyboardButton("📅 Post Scheduler", callback_data="sch_mgr")]
     ]
-    await update.message.reply_text("💎 **Hybrid Bot V3 Active**\nSaare options niche hain:", 
+    await update.message.reply_text("💎 **Hybrid Bot V4 (Ultimate)**\nSaare options niche hain:", 
                                    reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
 
 async def auto_post_job(context: ContextTypes.DEFAULT_TYPE):
@@ -66,7 +67,11 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    if query.data == "fwd_mgr":
+    if query.data == "main":
+        keyboard = [[InlineKeyboardButton("🔄 Forward Rules", callback_data="fwd_mgr"), InlineKeyboardButton("📅 Post Scheduler", callback_data="sch_mgr")]]
+        await query.edit_message_text("Saare options niche hain:", reply_markup=InlineKeyboardMarkup(keyboard))
+
+    elif query.data == "fwd_mgr":
         btn = [[InlineKeyboardButton("➕ New Rule", callback_data="new_rule")], [InlineKeyboardButton("⬅️ Back", callback_data="main")]]
         await query.edit_message_text("Forwarding Settings:", reply_markup=InlineKeyboardMarkup(btn))
     
@@ -90,13 +95,13 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if step == 'src':
         context.user_data['src'] = update.message.text
         context.user_data['step'] = 'dest'
-        await update.message.reply_text("Now Send Destination Channel ID (e.g. -100...):")
+        await update.message.reply_text("Ab Destination Channel ID bhejein (e.g. -100...):")
     
     elif step == 'dest':
         rule = ForwardRule(source_chat_id=context.user_data['src'], destination_chat_id=update.message.text)
         session.add(rule)
         session.commit()
-        await update.message.reply_text("✅ Rule Added!")
+        await update.message.reply_text("✅ Forwards Rule Added!")
         context.user_data.clear()
 
     elif step == 'wait_time':
@@ -113,9 +118,9 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.user_data.get('step') == 'wait_photo':
         context.user_data['photo'] = update.message.photo[-1].file_id
         context.user_data['cap'] = update.message.caption or ""
-        context.user_data['sch_cid'] = update.message.chat_id # Default to current or ask ID
+        context.user_data['sch_cid'] = update.message.chat_id 
         context.user_data['step'] = 'wait_time'
-        await update.message.reply_text("Send Time in HH:MM format (e.g. 15:30):")
+        await update.message.reply_text("Time bhejein HH:MM format mein (e.g. 15:30):")
 
 async def forward_logic(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.channel_post or update.message
@@ -142,6 +147,6 @@ def main():
     app.add_handler(MessageHandler(filters.PHOTO, photo_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, forward_logic))
-    app.run_polling()
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__": main()
